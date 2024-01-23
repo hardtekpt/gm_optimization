@@ -1,0 +1,142 @@
+
+delta_r = 2;
+V_clv = 2;
+
+gamma = linspace(0,2*pi);
+
+r = sqrt((delta_r * V_clv)/pi)*gamma;
+theta = sqrt((V_clv * 4*pi)/delta_r)*gamma;
+
+%% Circular Spiral
+
+x = r .* cos(theta);
+y = r .* sin(theta);
+
+plot(x,y);
+
+%% Eliptical Spiral
+
+P_center = [2; -1];
+a= 7;
+b= 3;
+alpha=pi/6;
+
+a = a / (a + b);
+b = b / (a + b);
+
+x = P_center(1) + cos(alpha)*a*r.*cos(theta) - sin(alpha)*b*r.*sin(theta);
+y = P_center(2) + sin(alpha)*a*r.*cos(theta) - cos(alpha)*b*r.*sin(theta);
+
+plot(x,y);
+
+%% Parameter estimation
+
+P_center = [2; -1];
+
+% Create GM
+mu = [[2,-1];];
+sigma = cat(3,[5 1]);
+gm = gmdistribution(mu,sigma);
+[f, x_sym] = get_gm_pdf(gm);
+
+eps = 0.2;
+[fit, fit_sym, Q] = get_quadratic_fit(P_center, eps, f, x_sym, 'optimize');
+
+p = P_center;
+eps = 0.5;
+xa = [p(1); p(1) + eps; p(1) - eps; p(1)      ; p(1)      ; p(1) + eps; p(1) + eps; p(1) - eps; p(1) - eps];
+ya = [p(2); p(2)      ; p(2)      ; p(2) + eps; p(2) - eps; p(2) + eps; p(2) - eps; p(2) - eps; p(2) + eps];
+x = [xa;ya];
+Q = get_Q_matrix(x,gm);
+
+[V, D] = eig(Q);
+
+a = 1/sqrt(abs(D(1,1)));
+b = 1/sqrt(abs(D(2,2)));
+
+alpha = atan(V(1,1)./V(1,2));
+
+a = a / (a + b);
+b = b / (a + b);
+
+x = P_center(1) + cos(alpha)*a*r.*cos(theta) - sin(alpha)*b*r.*sin(theta);
+y = P_center(2) + sin(alpha)*a*r.*cos(theta) - cos(alpha)*b*r.*sin(theta);
+
+plot_gm_contour(gm, [-6, 6]);
+hold on
+plot(x,y);
+
+%%
+
+P_center = [2; -1];
+
+% Create GM
+mu = [[2,-1];];
+sigma = cat(3,[5 1]);
+gm = gmdistribution(mu,sigma);
+
+delta_r = 2;
+V_vlc = 1;
+
+p = P_center;
+eps = 0.5;
+xa = [p(1); p(1) + eps; p(1) - eps; p(1)      ; p(1)      ; p(1) + eps; p(1) + eps; p(1) - eps; p(1) - eps];
+ya = [p(2); p(2)      ; p(2)      ; p(2) + eps; p(2) - eps; p(2) + eps; p(2) - eps; p(2) - eps; p(2) + eps];
+x = [xa';ya'];
+x = horzcat(x,P_center);
+
+spiral = compute_spiral(delta_r, V_vlc, x, gm);
+
+plot_optimization_results(gm, [-6 6], x, x(:,1), 'Spiral Test');
+
+hold on
+plot(spiral(1,:),spiral(2,:));
+
+%% Elipse around maximum
+
+P_center = [0; 0];
+
+% Create GM
+mu = [[P_center(1),P_center(2)];];
+sigma = cat(3,[5 1]);
+gm = gmdistribution(mu,sigma);
+
+delta_r = 2;
+V_vlc = 1;
+
+p = P_center;
+eps = 0.5;
+xa = [p(1); p(1) + eps; p(1) - eps; p(1)      ; p(1)      ; p(1) + eps; p(1) + eps; p(1) - eps; p(1) - eps];
+ya = [p(2); p(2)      ; p(2)      ; p(2) + eps; p(2) - eps; p(2) + eps; p(2) - eps; p(2) - eps; p(2) + eps];
+x = [xa';ya'];
+x = horzcat(x,P_center);
+
+syms gamma
+[spiral, a, b, alpha] = compute_spiral(delta_r, V_vlc, x(:,end), gm, gamma);
+rel = b/a;
+
+current_waypoint = [0;2];
+
+% scale the axes of the elipse so it touches the current_waypoint
+A = (current_waypoint(1) - P_center(1))^2;
+B = (current_waypoint(2) - P_center(2))^2;
+
+coefvct = [1  -2  (1-A-B) (2*A) -A]; 
+%coefvct = [-rel^2  0  (A*rel^2+B) 0 0]; 
+
+tt = roots(coefvct) ;  
+
+a = min(real(tt))/2;
+b = rel * a;
+
+theta = linspace(0,2*pi);
+
+xx = x(1,end) + cos(alpha)*a.*cos(theta) - sin(alpha)*b.*sin(theta);
+yy = x(2,end) + sin(alpha)*a.*cos(theta) - cos(alpha)*b.*sin(theta);
+
+plot_gm(gm, [-11 11]);
+hold on
+scatter(current_waypoint(1), current_waypoint(2));
+plot(xx,yy);
+
+

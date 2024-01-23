@@ -1,0 +1,205 @@
+
+delta_r = 2;
+V_clv = 2;
+
+gamma = linspace(0,2*pi);
+
+r = sqrt((delta_r * V_clv)/pi)*gamma;
+theta = sqrt((V_clv * 4*pi)/delta_r)*gamma;
+
+%% Circular Spiral
+
+x = r .* cos(theta);
+y = r .* sin(theta);
+
+plot(x,y);
+
+%% Eliptical Spiral
+
+P_center = [0; 0];
+a= 0.49;
+b= 0.51;
+alpha=0;
+
+sum = a + b;
+a = a / sum;
+b = b / sum;
+
+x = P_center(1) + cos(alpha)*a*r.*cos(theta) - sin(alpha)*b*r.*sin(theta);
+y = P_center(2) + sin(alpha)*a*r.*cos(theta) - cos(alpha)*b*r.*sin(theta);
+
+plot(x,y);
+
+%% Parameter estimation
+
+P_center = [2; -1];
+
+% Create GM
+mu = [[2,-1];];
+sigma = cat(3,[5 1]);
+gm = gmdistribution(mu,sigma);
+[f, x_sym] = get_gm_pdf(gm);
+
+eps = 0.2;
+[fit, fit_sym, Q] = get_quadratic_fit(P_center, eps, f, x_sym, 'optimize');
+
+p = P_center;
+eps = 0.5;
+xa = [p(1); p(1) + eps; p(1) - eps; p(1)      ; p(1)      ; p(1) + eps; p(1) + eps; p(1) - eps; p(1) - eps];
+ya = [p(2); p(2)      ; p(2)      ; p(2) + eps; p(2) - eps; p(2) + eps; p(2) - eps; p(2) - eps; p(2) + eps];
+x = [xa;ya];
+Q = get_Q_matrix(x,gm);
+
+[V, D] = eig(Q);
+
+a = 1/sqrt(abs(D(1,1)));
+b = 1/sqrt(abs(D(2,2)));
+
+alpha = atan(V(1,1)./V(1,2));
+
+a = a / (a + b);
+b = b / (a + b);
+
+x = P_center(1) + cos(alpha)*a*r.*cos(theta) - sin(alpha)*b*r.*sin(theta);
+y = P_center(2) + sin(alpha)*a*r.*cos(theta) - cos(alpha)*b*r.*sin(theta);
+
+plot_gm_contour(gm, [-6, 6]);
+hold on
+plot(x,y);
+
+%%
+
+P_center = [2; -1];
+
+% Create GM
+mu = [[2,-1];];
+sigma = cat(3,[5 1]);
+gm = gmdistribution(mu,sigma);
+
+delta_r = 2;
+V_vlc = 1;
+
+p = P_center;
+eps = 0.5;
+xa = [p(1); p(1) + eps; p(1) - eps; p(1)      ; p(1)      ; p(1) + eps; p(1) + eps; p(1) - eps; p(1) - eps];
+ya = [p(2); p(2)      ; p(2)      ; p(2) + eps; p(2) - eps; p(2) + eps; p(2) - eps; p(2) - eps; p(2) + eps];
+x = [xa';ya'];
+x = horzcat(x,P_center);
+
+spiral = compute_spiral(delta_r, V_vlc, x, gm);
+
+plot_optimization_results(gm, [-6 6], x, x(:,1), 'Spiral Test');
+
+hold on
+plot(spiral(1,:),spiral(2,:));
+
+%% Elipse around maximum
+
+P_center = [0; 0];
+
+% Create GM
+mu = [[P_center(1),P_center(2)];];
+sigma = cat(3,[5 1]);
+gm = gmdistribution(mu,sigma);
+
+delta_r = 2;
+V_vlc = 1;
+
+p = P_center;
+eps = 0.5;
+xa = [p(1); p(1) + eps; p(1) - eps; p(1)      ; p(1)      ; p(1) + eps; p(1) + eps; p(1) - eps; p(1) - eps];
+ya = [p(2); p(2)      ; p(2)      ; p(2) + eps; p(2) - eps; p(2) + eps; p(2) - eps; p(2) - eps; p(2) + eps];
+x = [xa';ya'];
+x = horzcat(x,P_center);
+
+syms gamma
+[spiral, a, b, alpha] = compute_spiral(delta_r, V_vlc, x(:,end), gm, gamma, P_center);
+rel = b/a;
+
+current_waypoint = [-2;3];
+
+% scale the axes of the elipse so it touches the current_waypoint
+A = (current_waypoint(1) - P_center(1))^2;
+B = (current_waypoint(2) - P_center(2))^2;
+
+%coefvct = [1  -2  (1-A-B) (2*A) -A]; 
+coefvct = [-rel^2  0  (A*rel^2+B) 0 0]; 
+
+tt = roots(coefvct) ;  
+
+a = max(real(tt));
+b = rel * a;
+
+% at the end, only need c1 and c2, 
+% to check if point is inside elipse, sum of distance to c1 and c2 is 2*a
+
+theta = linspace(0,2*pi);
+
+xx = x(1,end) + cos(alpha)*a.*cos(theta) - sin(alpha)*b.*sin(theta);
+yy = x(2,end) + sin(alpha)*a.*cos(theta) - cos(alpha)*b.*sin(theta);
+
+plot_gm(gm, [-11 11]);
+hold on
+scatter(current_waypoint(1), current_waypoint(2));
+plot(xx,yy);
+
+%% get_ellipse test
+
+P_center = [0; 0];
+current_waypoint = [0;4];
+alpha = pi/6;
+alpha = 0;
+a = 4;
+b = 2;
+
+[a, b, alpha, c1, c2] = get_ellipse(a, b, alpha, current_waypoint, P_center);
+
+test = [0;0];
+c = 0;
+if norm(c1 - test)+norm(c2 - test) - 2 * a <= 0.01
+    c = 1;
+end
+c
+
+theta = linspace(0,2*pi);
+xx = P_center(1) + cos(alpha)*a.*cos(theta) - sin(alpha)*b.*sin(theta);
+yy = P_center(2) + sin(alpha)*a.*cos(theta) - cos(alpha)*b.*sin(theta);
+
+plot(xx,yy);
+hold on
+scatter(c1(1), c1(2));
+scatter(c2(1), c2(2));
+
+%% get_ellipse_2 test
+
+P_center = [0; 0];
+current_waypoint = [0;4];
+alpha = pi/6;
+alpha = 0;
+a = 4;
+b = 2;
+
+f = get_ellipse_2(a,b,alpha, P_center);
+
+test = [0;5];
+c = 0;
+
+if f(test) <= f(current_waypoint)
+    c=1;
+end
+c
+
+%% square spiral test
+
+c = [-2; 1];
+angle = 1.39;
+
+k = 6;
+m = 0;
+r = 0.2;
+
+ss = get_square_spiral(k, m, r, angle);
+ss = c + ss;
+
+plot(ss(1,:), ss(2, :));
+
